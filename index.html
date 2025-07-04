@@ -255,18 +255,39 @@
         return input.valueAsNumber;
       }
 
+      const MAX_MODULE_LEVEL = 15;
+      const MAX_RELICS_ALLOWED = 25;
       function tpUpdate() {
-        tplvl = inUpdate(document.getElementById("input-tp"));
+        let input = document.getElementById("input-tp");
+        tplvl = inUpdate(input);
+        // Stop mobile users entering values over 15 in the text field
+        if (tplvl > MAX_MODULE_LEVEL) {
+          tplvl = MAX_MODULE_LEVEL;
+          input.value = MAX_MODULE_LEVEL;
+        }
         updateMapPopup();
       }
 
       function relicsUpdate() {
-        totalRelics = inUpdate(document.getElementById("input-relics"));
+        let input = document.getElementById("input-relics");
+        totalRelics = inUpdate(input);
+        // Stop mobile users entering values over 25 in the text field
+        if (totalRelics > MAX_RELICS_ALLOWED) {
+          totalRelics = MAX_RELICS_ALLOWED;
+          input.value = MAX_RELICS_ALLOWED;
+        }
         updateMapPopup();
       }
 
       function rushUpdate() {
-        rushLevel = inUpdate(document.getElementById("input-rush"));
+        let input = document.getElementById("input-rush");
+        rushLevel = inUpdate(input);
+
+        // Stop mobile users entering values over 15 in the text field
+        if (rushLevel > MAX_MODULE_LEVEL) {
+          rushLevel = MAX_MODULE_LEVEL;
+          input.value = MAX_MODULE_LEVEL;
+        }
         updateMapPopup();
       }
 
@@ -447,7 +468,7 @@
           "<b><u>Transit Times</u></b><br>";
 
         document.getElementById("info2").innerHTML +=
-          "BS: " + secondsToHms(totalDist / battleshipSpeed) + "<br>";
+          "BS(Drive): " + secondsToHms(totalDist / battleshipSpeed) + "<br>";
 
         document.getElementById("info2").innerHTML +=
           "BS(Impulse): " + secondsToHms(impulseTime) + "<br>";
@@ -461,7 +482,7 @@
         }
 
         document.getElementById("info2").innerHTML +=
-          "TS: " + secondsToHms(totalDist / transportSpeed) + "</br>";
+          "TS(Drive): " + secondsToHms(totalDist / transportSpeed) + "</br>";
 
         if (totalRelics <= 0) {
           document.getElementById("info2").innerHTML +=
@@ -483,10 +504,10 @@
         }
 
         document.getElementById("info2").innerHTML +=
-          "MS: " + secondsToHms(totalDist / minerSpeed) + "</br><br>";
+          "MS(Drive): " + secondsToHms(totalDist / minerSpeed) + "</br><br>";
 
         document.getElementById("info2").innerHTML +=
-          "FS: " + secondsToHms(totalDist / flagshipSpeed) + "</br>";
+          "FS(Drive): " + secondsToHms(totalDist / flagshipSpeed) + "</br>";
 
         popupShown = true;
       }
@@ -536,9 +557,9 @@
                 "Each sector should be 500AU diagonally.<br>" +
                 "Tap map to add waypoints to measure.<br>" +
                 "<a href='#' onclick=ResetPoints()>Click HERE to Reset Waypoints.</a><br><br>" +
-                "TP level: <input type='number' id='input-tp' onkeyup='tpUpdate()' onchange='tpUpdate()' value=0 min='0' max='15' style='width: 3.75em;'/>" +
-                "Rush level: <input type='number' id='input-rush' onkeyup='rushUpdate()' onchange='rushUpdate()' value=0 min='0' max='15' style='width: 3.75em;'/>" +
-                "Total relics: <input type='number' id='input-relics' onkeyup='relicsUpdate()' onchange='relicsUpdate()' value=0 min='0' max='25' style='width: 3.75em;'/><br>";
+                "TP level: <input type='number' id='input-tp' onkeyup='tpUpdate()' onchange='tpUpdate()' value=0 min='0' max='15' style='width: 3.75em; margin-right: 0.75em;'/>" +
+                "Rush level: <input type='number' id='input-rush' onkeyup='rushUpdate()' onchange='rushUpdate()' value=0 min='0' max='15' style='width: 3.75em; margin-right: 0.75em;'/>" +
+                "Total relics: <input type='number' id='input-relics' onkeyup='relicsUpdate()' onchange='relicsUpdate()' value=0 min='0' max='25' style='width: 3.75em; margin-right: 0.75em;'/><br>";
             } else {
               if (pts.length > 0) {
                 var travel = L.polyline([pts[pts.length - 1], e.latlng]).addTo(
