@@ -1,0 +1,569 @@
+<!-- 
+  White Star Cartographer Tool for Panda Clan
+  Created by Concedo
+  Updated by Elder Things Corp
+  Powered by Leaflet js
+  
+  Measurement accuracy may depend on performing proper calibration. 
+  Panda Clan takes no responsibility for the loss of your miners, transports or battleships as a result of the use of this tool.
+  -->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>White Star Cartographer</title>
+
+    <meta charset="utf-8" />
+
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="touch-icon-ipad.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="touch-icon-iphone-retina.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="167x167"
+      href="touch-icon-ipad-retina.png"
+    />
+    <link rel="manifest" href="site.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="WS Cartographer" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="application-name" content="WS Cartographer" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-navbutton-color" content="#1a1a1a" />
+    <meta name="msapplication-starturl" content="/" />
+    <meta name="msapplication-TileColor" content="#1a1a1a" />
+    <meta name="theme-color" content="#1a1a1a" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+
+    <!-- Bootstrap 4.0 distributed CSS -->
+    <link
+      rel="stylesheet"
+      href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+      integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm"
+      crossorigin="anonymous"
+    />
+    <!-- Leaflet distributed CSS -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+      integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+      crossorigin=""
+    />
+    <!-- Leaflet distributed JS -->
+    <script
+      src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+      integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+      crossorigin=""
+    ></script>
+    <!-- Custom stylesheet for WS Cartographer -->
+    <link rel="stylesheet" href="carto-style.css" />
+  </head>
+  <body onload="bodyOnLoad()">
+    <div id="refreshButton">
+      <button
+        onClick="window.location.href=window.location.href"
+        class="button button1"
+      >
+        New Map
+      </button>
+    </div>
+    <div id="banner">
+      <p class="bannerHeading">Step 1: Load a screenshot of the white star</p>
+    </div>
+
+    <div id="instructions">
+      <p id="info"></p>
+      <button id="uploadbtn" class="button button1">
+        Select White Star Screenshot or Ctrl-V to paste
+      </button>
+      <button id="pastebtn" class="button button1">
+        Tap to paste White Star Screenshot
+      </button>
+    </div>
+    <div id="map" style="display: none">
+      <img id="origimg" style="display: none" src="" />
+    </div>
+    <hr />
+    <hr />
+    <div id="footer">
+      <p>
+        Measurement accuracy may depend on performing proper calibration.<br />
+      </p>
+    </div>
+
+    <script>
+      var tplvl = 0;
+      var tpDistance = [
+        0, 400, 436, 475.2, 517.9, 564.5, 615.3, 670.6, 730.9, 796.6, 870, 945,
+        1030, 1125, 1225, 1330,
+      ];
+      var relicDroneMaxRange = 600;
+      var totalRelics = 0;
+      var rushLevel = 0;
+      var rushSpeedIncreasePercentPerLevel = [
+        0, 6, 7, 8, 9, 11, 13, 15, 17, 19, 21, 23, 25, 28, 31, 35,
+      ];
+      var rushMaxSpeedMultiplier = 2.0;
+      var tpTimeSeconds = 8 * 60 * 60; // 8 hours
+      var impulseMultiplier = 4; // 100% (base) + 300% = 400% or 4x
+      var impulseDurationSeconds = 6000; // 1 hour 40 minutes
+      var MAX_IMPULSE_DISTANCE_AU = 521; // Manual calculation (needs verifying)
+
+      //ship speeds in au per second
+      var wsSlowdownFactor = 600.0;
+      var minerSpeed = 74.0 / 3600;
+      var transportSpeed = 74.0 / 3600;
+      var battleshipSpeed = 78.0 / 3600;
+      var flagshipSpeed = 62.0 / 3600;
+      var relicDroneSpeed = 86.0 / 3600;
+
+      // helper functions
+      function calculateTravelTime(distance, speed) {
+        return distance / speed;
+      }
+
+      function getImpulseTravelTime(
+        distanceAU,
+        baseSpeed,
+        impulseMultiplier,
+        impulseDurationSeconds
+      ) {
+        const impulseSpeed = baseSpeed * impulseMultiplier;
+        const maxImpulseDistance = impulseSpeed * impulseDurationSeconds;
+
+        if (distanceAU <= maxImpulseDistance) {
+          return calculateTravelTime(distanceAU, impulseSpeed);
+        } else {
+          const remainingDistance = distanceAU - maxImpulseDistance;
+          const drivingTime = calculateTravelTime(remainingDistance, baseSpeed);
+          return impulseDurationSeconds + drivingTime;
+        }
+      }
+
+      function getTeleportTravelTime(
+        distanceAU,
+        teleportRangeAU,
+        baseSpeed,
+        teleportTimeSeconds
+      ) {
+        if (distanceAU <= teleportRangeAU) {
+          return teleportTimeSeconds;
+        } else {
+          const remainingDistance = distanceAU - teleportRangeAU;
+          const drivingTime = calculateTravelTime(remainingDistance, baseSpeed);
+          return teleportTimeSeconds + drivingTime;
+        }
+      }
+
+      function getRushSpeed(
+        rushLevel,
+        totalRelics,
+        baseSpeed,
+        rushSpeedTable,
+        maxRushMultiplier
+      ) {
+        if (rushLevel <= 0 || totalRelics <= 0) return baseSpeed;
+
+        let rushMultiplier = (rushSpeedTable[rushLevel] / 100) * totalRelics;
+        rushMultiplier = Math.min(rushMultiplier, maxRushMultiplier);
+        return baseSpeed * (1 + rushMultiplier);
+      }
+
+      function getRushTravelTime(
+        distanceAU,
+        rushLevel,
+        totalRelics,
+        baseSpeed,
+        rushSpeedTable,
+        maxRushMultiplier
+      ) {
+        const rushSpeed = getRushSpeed(
+          rushLevel,
+          totalRelics,
+          baseSpeed,
+          rushSpeedTable,
+          maxRushMultiplier
+        );
+        return calculateTravelTime(distanceAU, rushSpeed);
+      }
+
+      var ResetPoints = function () {
+        pts = [];
+        document.getElementById("info2").innerHTML = "";
+        for (var i = 0; i < lines.length; i++) {
+          map.removeLayer(lines[i]);
+        }
+        map.closePopup();
+        popupShown = false;
+      };
+
+      // Measurement functions
+      var yx = L.latLng;
+      var xy = function (x, y) {
+        if (L.Util.isArray(x)) {
+          // When doing xy([x, y]);
+          return yx(x[1], x[0]);
+        }
+        return yx(y, x); // When doing xy(x, y);
+      };
+
+      var p1 = xy(-1, -1);
+      var p2 = xy(-1, -1);
+      var p1set = false;
+      var p2set = false;
+      var pts = [];
+      var lines = [];
+      var map = L.map("map", {
+        crs: L.CRS.Simple,
+        minZoom: -3,
+      });
+
+      var knownmultiplier = 4.348; //value empirically determined to get 500AU across one ws sector's long diagonal
+      var knowncalibrationdistance = 500; //known calibration distance is 500AU per sector diagonal. it's short but its easy to perform
+      var calibrationMeasured = 0; //to compare ratio to our measurements
+
+      var imgloaded = false;
+
+      var infobox = L.control();
+
+      infobox.onAdd = function (map) {
+        this._div = L.DomUtil.create("div", "infobox"); // create a div with a class "info"
+        this.update();
+        return this._div;
+      };
+
+      // method that we will use to update the control based on feature properties passed
+      infobox.update = function (props) {
+        this._div.innerHTML = '<p id="info2"></p>';
+      };
+
+      infobox.addTo(map);
+
+      function inUpdate(input) {
+        if (isNaN(input.valueAsNumber)) {
+          input.value = 0;
+        }
+
+        input.value = input.valueAsNumber;
+        return input.valueAsNumber;
+      }
+
+      function tpUpdate() {
+        tplvl = inUpdate(document.getElementById("input-tp"));
+        updateMapPopup();
+      }
+
+      function relicsUpdate() {
+        totalRelics = inUpdate(document.getElementById("input-relics"));
+        updateMapPopup();
+      }
+
+      function rushUpdate() {
+        rushLevel = inUpdate(document.getElementById("input-rush"));
+        updateMapPopup();
+      }
+
+      function showUpload() {
+        var imgUploadInput = document.getElementById("ImageUploaderInput");
+        if (!imgUploadInput) {
+          var fileInput = document.createElement("input");
+          fileInput.setAttribute("type", "file");
+          fileInput.setAttribute("accept", "image/png,image/jpeg");
+
+          fileInput.setAttribute("id", "ImageUploaderInput");
+          fileInput.style.visibility = "hidden";
+          fileInput.onclick = function (event) {
+            this.value = null;
+          };
+          fileInput.onchange = function (event) {
+            var origimg = document.getElementById("origimg");
+            origimg.src = URL.createObjectURL(event.target.files[0]);
+            processImage();
+          };
+          document.body.appendChild(fileInput);
+        } else {
+          imgUploadInput.setAttribute("accept", "image/png,image/jpeg");
+        }
+        var OpenFileDialog = function () {
+          document.getElementById("ImageUploaderInput").click();
+        };
+
+        document
+          .getElementById("uploadbtn")
+          .addEventListener("click", OpenFileDialog, false);
+        document
+          .getElementById("pastebtn")
+          .addEventListener("click", async (clickEvent) => {
+            let items = await navigator.clipboard.read();
+            for (let item of items) {
+              //console.log(item.types);
+              if (!item.types.includes("image/png")) continue;
+
+              clipboardBlob = await item.getType("image/png");
+              if (clipboardBlob) {
+                var origimg = document.getElementById("origimg");
+                origimg.src = URL.createObjectURL(clipboardBlob);
+                processImage();
+              }
+              break;
+            }
+          });
+
+        // ability to paste image instead of upload
+        window.addEventListener(
+          "paste",
+          function (e) {
+            // Handle the event
+            if (!imgloaded) {
+              retrieveImageFromClipboardAsBlob(e, function (imageBlob) {
+                // If there's an image, display it in the canvas
+                if (imageBlob) {
+                  var origimg = document.getElementById("origimg");
+                  origimg.src = URL.createObjectURL(imageBlob);
+                  processImage();
+                }
+              });
+            }
+          },
+          false
+        );
+      }
+
+      function retrieveImageFromClipboardAsBlob(pasteEvent, callback) {
+        if (pasteEvent.clipboardData == false) {
+          if (typeof callback == "function") {
+            callback(undefined);
+          }
+        }
+
+        var items = pasteEvent.clipboardData.items;
+
+        if (items == undefined) {
+          if (typeof callback == "function") {
+            callback(undefined);
+          }
+        }
+
+        for (var i = 0; i < items.length; i++) {
+          // Skip content if not image
+          if (items[i].type.indexOf("image") == -1) continue;
+          // Retrieve image on clipboard as blob
+          var blob = items[i].getAsFile();
+
+          if (typeof callback == "function") {
+            callback(blob);
+          }
+        }
+      }
+
+      function distance(x1, y1, x2, y2) {
+        var d1 = x2 - x1;
+        var d2 = y2 - y1;
+        return Math.sqrt(d1 * d1 + d2 * d2);
+      }
+
+      function secondsToHms(d) {
+        d = Number(d);
+        var h = Math.floor(d / 3600);
+        var m = Math.floor((d % 3600) / 60);
+        var s = Math.floor((d % 3600) % 60);
+
+        var hDisplay = h.toString();
+        var mDisplay = m.toString();
+        var sDisplay = s.toString();
+
+        return hDisplay + "h:" + mDisplay + "m:" + sDisplay + "s";
+      }
+      function updateMapPopup(force) {
+        if (force === undefined) {
+          if (!popupShown) {
+            return;
+          }
+        }
+
+        var totalDist = 0;
+        for (var i = 1; i < pts.length; ++i) {
+          totalDist += distance(
+            pts[i].lat,
+            pts[i].lng,
+            pts[i - 1].lat,
+            pts[i - 1].lng
+          );
+        }
+
+        //scale according to calibration values
+        var calibrationscale = calibrationMeasured / knowncalibrationdistance;
+
+        //calculate total distance
+        totalDist = (totalDist * knownmultiplier) / calibrationscale;
+
+        // calculate transit times
+        let teleportingTime = getTeleportTravelTime(
+          totalDist,
+          tpDistance[tplvl],
+          battleshipSpeed,
+          tpTimeSeconds
+        );
+
+        let impulseTime = getImpulseTravelTime(
+          totalDist,
+          battleshipSpeed,
+          impulseMultiplier,
+          impulseDurationSeconds
+        );
+
+        let rushSpeed = getRushSpeed(
+          rushLevel,
+          totalRelics,
+          transportSpeed,
+          rushSpeedIncreasePercentPerLevel,
+          rushMaxSpeedMultiplier
+        );
+
+        let rushTime = getRushTravelTime(
+          totalDist,
+          rushLevel,
+          totalRelics,
+          transportSpeed,
+          rushSpeedIncreasePercentPerLevel,
+          rushMaxSpeedMultiplier
+        );
+
+        // display
+        document.getElementById("info2").innerHTML =
+          "<b><u>Total Distance</u></b><br> " +
+          totalDist.toFixed(1) +
+          " AU" +
+          "</br><br>";
+
+        document.getElementById("info2").innerHTML +=
+          "<b><u>Transit Times</u></b><br>";
+
+        document.getElementById("info2").innerHTML +=
+          "BS: " + secondsToHms(totalDist / battleshipSpeed) + "<br>";
+
+        document.getElementById("info2").innerHTML +=
+          "BS(Impulse): " + secondsToHms(impulseTime) + "<br>";
+
+        if (tplvl > 0) {
+          document.getElementById("info2").innerHTML +=
+            "BS(TP): " + secondsToHms(teleportingTime) + "<br><br>";
+        } else {
+          document.getElementById("info2").innerHTML +=
+            "BS(TP): " + "Not selected" + "<br><br>";
+        }
+
+        document.getElementById("info2").innerHTML +=
+          "TS: " + secondsToHms(totalDist / transportSpeed) + "</br>";
+
+        if (totalRelics <= 0) {
+          document.getElementById("info2").innerHTML +=
+            "TS(rush): " + "No relics" + "</br>";
+        } else if (rushLevel <= 0) {
+          document.getElementById("info2").innerHTML +=
+            "TS(rush): " + "No rush" + "</br>";
+        } else {
+          document.getElementById("info2").innerHTML +=
+            "TS(rush): " + secondsToHms(rushTime) + "</br>";
+        }
+
+        if (totalDist > relicDroneMaxRange) {
+          document.getElementById("info2").innerHTML +=
+            "RD: " + "Out of range" + "</br><br>";
+        } else {
+          document.getElementById("info2").innerHTML +=
+            "RD: " + secondsToHms(totalDist / relicDroneSpeed) + "</br><br>";
+        }
+
+        document.getElementById("info2").innerHTML +=
+          "MS: " + secondsToHms(totalDist / minerSpeed) + "</br><br>";
+
+        document.getElementById("info2").innerHTML +=
+          "FS: " + secondsToHms(totalDist / flagshipSpeed) + "</br>";
+
+        popupShown = true;
+      }
+
+      function processImage() {
+        document.getElementById("banner").style.display = "none";
+        document.getElementById("map").style.display = "";
+        document.getElementById("uploadbtn").style.display = "none";
+        document.getElementById("pastebtn").style.display = "none";
+        document.getElementById("info").innerHTML =
+          "Step 2 (Calibration): Click on one corner at the edge of any sector. <a href='images/instruct1.png' target='_blank'>(Need Help?)</a>";
+
+        var img = document.getElementById("origimg");
+        img.onload = function () {
+          imgloaded = true;
+          var bounds = [xy(0, 0), xy(img.width, img.height)];
+          var image = L.imageOverlay(
+            document.getElementById("origimg").src,
+            bounds
+          ).addTo(map);
+
+          var popup = L.popup();
+          function onMapClick(e) {
+            if (!p1set) {
+              p1set = true;
+              p1 = e.latlng;
+              popup
+                .setLatLng(e.latlng)
+                .setContent("Calibration Point 1 Set")
+                .openOn(map);
+
+              document.getElementById("info").innerHTML =
+                "Step 3 (Calibration): Now click on the corner directly opposite to the first corner in the same sector. <a href='images/instruct2.png' target='_blank'>(Need Help?)</a>";
+            } else if (!p2set) {
+              p2set = true;
+              p2 = e.latlng;
+
+              calibrationMeasured =
+                distance(p1.lat, p1.lng, p2.lat, p2.lng) * knownmultiplier;
+
+              popup
+                .setLatLng(e.latlng)
+                .setContent("Calibration Point 2 Set")
+                .openOn(map);
+
+              document.getElementById("info").innerHTML =
+                "Each sector should be 500AU diagonally.<br>" +
+                "Tap map to add waypoints to measure.<br>" +
+                "<a href='#' onclick=ResetPoints()>Click HERE to Reset Waypoints.</a><br><br>" +
+                "TP level: <input type='number' id='input-tp' onkeyup='tpUpdate()' onchange='tpUpdate()' value=0 min='0' max='15' style='width: 3.75em;'/>" +
+                "Rush level: <input type='number' id='input-rush' onkeyup='rushUpdate()' onchange='rushUpdate()' value=0 min='0' max='15' style='width: 3.75em;'/>" +
+                "Total relics: <input type='number' id='input-relics' onkeyup='relicsUpdate()' onchange='relicsUpdate()' value=0 min='0' max='25' style='width: 3.75em;'/><br>";
+            } else {
+              if (pts.length > 0) {
+                var travel = L.polyline([pts[pts.length - 1], e.latlng]).addTo(
+                  map
+                );
+                lines.push(travel);
+              }
+              pts.push(e.latlng);
+
+              popup
+                .setLatLng(e.latlng)
+                .setContent("Waypoint " + pts.length)
+                .openOn(map);
+
+              updateMapPopup(1);
+            }
+          }
+
+          map.on("click", onMapClick);
+
+          map.setView(xy(img.width / 2, img.height / 2), 0.2);
+        };
+      }
+
+      showUpload();
+    </script>
+  </body>
+</html>
