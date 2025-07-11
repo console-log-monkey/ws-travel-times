@@ -483,21 +483,26 @@
 
         if (totalRelics <= 0) {
           document.getElementById("info2").innerHTML +=
-            "TS(rush): " + "No relics" + "</br>";
+            "TS(Rush): " + "No relics" + "</br>";
         } else if (rushLevel <= 0) {
           document.getElementById("info2").innerHTML +=
-            "TS(rush): " + "No rush" + "</br>";
+            "TS(Rush): " + "No rush" + "</br>";
         } else {
           document.getElementById("info2").innerHTML +=
-            "TS(rush): " + secondsToHms(rushTime) + "</br>";
+            "TS(Rush): " + secondsToHms(rushTime) + "</br>";
         }
 
+        // RD time should always be displayed to see return trips, not just launches.
+        document.getElementById("info2").innerHTML +=
+          "RD(Drive): " + secondsToHms(totalDist / relicDroneSpeed) + "</br>";
+
+        // check if relic drone is in launch range
         if (totalDist > relicDroneMaxRange) {
           document.getElementById("info2").innerHTML +=
-            "RD: " + "Out of range" + "</br><br>";
+            "RD in launch range: No" + "</br><br>";
         } else {
           document.getElementById("info2").innerHTML +=
-            "RD: " + secondsToHms(totalDist / relicDroneSpeed) + "</br><br>";
+            "RD in launch range: Yes" + "</br><br>";
         }
 
         document.getElementById("info2").innerHTML +=
