@@ -120,6 +120,7 @@
       var battleshipSpeed = 78.0 / 3600;
       var flagshipSpeed = 62.0 / 3600;
       var relicDroneSpeed = 86.0 / 3600;
+      var deltaRocketSpeed = 210.0 / 3600;
 
       // helper functions
       function calculateTravelTime(distance, speed) {
@@ -509,7 +510,14 @@
           "MS(Drive): " + secondsToHms(totalDist / minerSpeed) + "</br><br>";
 
         document.getElementById("info2").innerHTML +=
-          "FS(Drive): " + secondsToHms(totalDist / flagshipSpeed) + "</br>";
+          "FS(Drive): " +
+          secondsToHms(totalDist / flagshipSpeed) +
+          "</br></br>";
+
+        document.getElementById("info2").innerHTML +=
+          "Delta rocket: " +
+          secondsToHms(totalDist / deltaRocketSpeed) +
+          "</br>";
 
         popupShown = true;
       }
